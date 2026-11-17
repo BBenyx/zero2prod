@@ -1,30 +1,28 @@
 /*
 Our statement: When we receive a GET request for /health_check we return a 200 OK response with no body
  */
+use axum::body::{Body, to_bytes};
+use axum::http::Request;
+use tower::ServiceExt;
 
 #[tokio::test]
 async fn health_check_works() {
-    // Starts our application in the background
-    spawn_app().await.expect("Failed to spawn our app.");
+    let app = zero2prod::app();
 
-    // Reqwest can perform HTTP request against our application.
-    let client = reqwest::Client::new();
-
-    // Sending the actual request
-    let response = client
-        .get("http://localhost:3000/health_check")
-        .send()
+    // Oneshot will one send one request without actually starting an HTTP server
+    let response = app
+        .oneshot(Request::get("/health_check").body(Body::empty()).unwrap())
         .await
-        .expect("Failed to execute request.");
+        .unwrap();
 
-    // Assert if
-    // the status is not 200 OK
     assert!(response.status().is_success());
-    // or if we got a body!
-    assert_eq!(Some(0), response.content_length());
-}
 
-// Launch application in the background
-async fn spawn_app() -> std::io::Result<()> {
-    todo!("Investigate axum TestServer to support reqwest testing!")
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("Response body  read failure.");
+
+    assert!(body.is_empty());
+
+    // Sources: github.com/tokio-rs/axum/blob/main/examples/testing/
+    // https://docs.rs/axum/latest/axum/body/fn.to_bytes.html
 }
